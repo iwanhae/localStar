@@ -10,10 +10,12 @@ namespace localStar.Config
         public static IPAddress[] nameSevers { get; } = new IPAddress[] { new IPAddress(new byte[] { 8, 8, 8, 8 }) };
         public static IPAddress localPublicIP { get; } = new IPAddress(new byte[] { 127, 0, 0, 1 });
 
-        public static IPAddress globalPublicIP { get; } = new IPAddress(new byte[] { 127, 0, 0, 1 });
+
 		public static IPAddress host { get; } = IPAddress.Any;
-        public static int port { get; } = 8080;
-        public static IPEndPoint globalPublicEndPoint { get => new IPEndPoint(globalPublicIP, port); }
+        public static int globalPort { get; } = 8081;
+        public static int localPort { get; } = 8080;
+        public static IPAddress globalPublicIP { get; } = new IPAddress(new byte[] { 127, 0, 0, 1 });
+        public static IPEndPoint globalPublicEndPoint { get => new IPEndPoint(globalPublicIP, globalPort); }
 
 
         public static IPAddress dnsHost { get; } = IPAddress.Any;
