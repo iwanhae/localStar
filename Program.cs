@@ -25,8 +25,9 @@ namespace localStar
             while (true)
             {
                 tc = tl.AcceptTcpClient();
+                Console.WriteLine(((IPEndPoint)tc.Client.RemoteEndPoint).Port);
 
-                new localStar.Connection.Stream.InterNodeStream(tc.GetStream());
+                new localStar.Connection.Stream.NodeStream(tc.GetStream());
                 tc.Close();
             }
         }

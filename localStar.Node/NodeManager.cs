@@ -1,7 +1,9 @@
 using System.Net;
 using System.Collections.Generic;
 using System;
+using System.IO;
 using System.Runtime.Serialization;
+using System.Runtime.Serialization.Formatters.Binary;
 using localStar.Config;
 
 namespace localStar.Node
@@ -13,22 +15,30 @@ namespace localStar.Node
         static SortedDictionary<String, Node> ConnectedNodes = new SortedDictionary<String, Node>();
         static SortedDictionary<String, Node> KnowServices = new SortedDictionary<String, Node>();
         static SortedDictionary<String, Node> ConnectedServices = new SortedDictionary<String, Node>();
-
-        public static byte[] getShareInfo()
+        
+        public static Stream getKnownNodesStream()
         {
-            var stream = new System.IO.MemoryStream();
-            var bf = new System.Runtime.Serialization.Formatters.Binary.BinaryFormatter();
             var obj = new Dictionary<String, Node>();
             foreach (var d in KnownNodes) obj.Add(d.Key, d.Value);
-
-            bf.Serialize(stream, obj);
-            stream.Flush();
-            return stream.ToArray();
+            return Tools.getStream(obj);
         }
+
         public static bool addNode(Node node)
         {
             KnownNodes.Add(node.id, node);
             return true;
+        }
+        public static bool setNodeConnected(Node node)
+        {
+            KnownNodes.Add(node.id, node);
+            ConnectedNodes.Add(node.id, node);
+            return true;
+        }
+        public static bool setNodeConnected(String id)
+        {
+            Node node = getNodeById(id);
+            if (node == null) return false;
+            return setNodeConnected(node);
         }
         public static Node getCurrentNode()
         {

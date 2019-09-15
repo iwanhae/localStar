@@ -6,6 +6,7 @@ using localStar.Config;
 
 namespace localStar.Node
 {
+    [Serializable]
     public class Node : ISerializable
     {
         // id of this node
@@ -16,16 +17,64 @@ namespace localStar.Node
         public IPEndPoint address { get; }
 
         // Comment: 이름과 내용.
-        public Dictionary<string, Node> ConnectedNode = new Dictionary<string, Node>();
-        public Dictionary<string, Service> ConnectedService = new Dictionary<string, Service>();
+        private Dictionary<string, Node> ConnectedNode = new Dictionary<string, Node>();
+        private Dictionary<string, Service> ConnectedService = new Dictionary<string, Service>();
+        private Dictionary<string, Index> indexList = new Dictionary<string, Index>();
 
+        public Node shortestPathTo(string Id)
+        {
+            Index index;
+            if (indexList.TryGetValue(Id, out index))
+                return ConnectedNode[index.nodeId];
+            else return null;
+        }
+        public void refreshIndex()
+        {
+            Dictionary<string, Index> indexList = new Dictionary<string, Index>();
+            Index tmp;
+            foreach (var pair in ConnectedService)
+            {
+                if (indexList.TryGetValue(pair.Key, out tmp))
+                {
+                    if (pair.Value.delay < tmp.delay)
+                        indexList.Add(pair.Key, new Index(pair.Key, this.id, pair.Value.delay));
+                }
+                else
+                    indexList.Add(pair.Key, new Index(pair.Key, this.id, pair.Value.delay));
+            }
+            foreach (var node in ConnectedNode.Values)
+            {
+                node.refreshIndex();
+                foreach (var pair in node.indexList)
+                    if (indexList.TryGetValue(pair.Key, out tmp))
+                    {
+                        if (pair.Value.delay + node.delay < tmp.delay)
+                            indexList.Add(pair.Key, new Index(pair.Key, node.id, pair.Value.delay + node.delay));
+                    }
+                    else
+                        indexList.Add(pair.Key, new Index(pair.Key, node.id, pair.Value.delay + node.delay));
+            }
+            this.indexList = indexList;
+        }
+        public void removeFromAllChildNodes(Node node) => removeFromAllChildNodes(node.id);
+        public void removeFromAllChildNodes(string NodeId)
+        {
+            ConnectedNode.Remove(NodeId);
+            foreach (var pair in ConnectedNode)
+                pair.Value.removeFromAllChildNodes(NodeId);
+        }
         public List<Node> getConnectedNode()
         {
             var list = new List<Node>();
             foreach (var pair in ConnectedNode) list.Add(pair.Value);
             return list;
         }
-
+        public bool addConnectedNode(Node node, int delay)
+        {
+            if (ConnectedNode.ContainsKey(node.id)) return false;
+            ConnectedNode.Add(node.id, node);
+            return true;
+        }
         public bool setNodeDelay(string id, int delay)
         {
             Node val;
@@ -40,12 +89,6 @@ namespace localStar.Node
         {
             this.delay = delay;
         }
-        public bool addConnectedNode(Node node, int delay)
-        {
-            if (ConnectedNode.ContainsKey(node)) return false;
-            ConnectedNode.Add(node, delay);
-            return true;
-        }
         public Node(String id, IPEndPoint address)
         {
             this.id = id;
@@ -58,7 +101,7 @@ namespace localStar.Node
             : this(id, IPAddress.Parse(address)) { }
 
 
-        public override string ToString() { return id; }
+        public override string ToString() { return id + ": delay " + delay + "ms"; }
 
         public override bool Equals(object obj)
         {
@@ -91,8 +134,8 @@ namespace localStar.Node
             delay = info.GetInt32("delay");
             IPAddress ip = new IPAddress((byte[])info.GetValue("ip", typeof(byte[])));
             address = new IPEndPoint(ip, info.GetInt32("port"));
-            ConnectedNode = info.GetValue("ConnectedNode", typeof(SortedDictionary<Node, int>)) as SortedDictionary<Node, int>;
-            ConnectedService = info.GetValue("ConnectedService", typeof(SortedDictionary<string, Service>)) as SortedDictionary<string, Service>;
+            ConnectedNode = (Dictionary<string, Node>)info.GetValue("ConnectedNode", typeof(Dictionary<string, Node>));
+            ConnectedService = (Dictionary<string, Service>)info.GetValue("ConnectedService", typeof(Dictionary<string, Service>));
         }
     }
 }

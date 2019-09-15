@@ -2,7 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using System.IO;
-using System.IO.Pipes;
+using System.Collections;
 using System.Net.Sockets;
 using localStar.Node;
 using localStar.Config;
@@ -10,16 +10,24 @@ using System.Text;
 
 namespace localStar.Connection.Stream
 {
-    class InterNodeStream
+    public class NewMessageReceivedArgs : EventArgs
+    {
+        public Message message { get; set; }
+    }
+    class NodeStream
     {
         private NetworkStream nodeStream;
         private String nodeId;
+        private Node.Node node;
         private long delay;
         private bool isPrior;
-        private bool isAvailable = false;
-        private Thread readThread, wirteThread;
+        private Thread handleReceiveThread;
+        //private Queue
 
-        public InterNodeStream(NetworkStream nodeStream)
+        public bool isAvailable { get { return nodeStream.CanWrite; } }
+        public event EventHandler<NewMessageReceivedArgs> NewMessageReceived;
+
+        public NodeStream(NetworkStream nodeStream)
         {
             nodeStream.ReadTimeout = 1000;
             nodeStream.WriteTimeout = 1000;
@@ -27,37 +35,52 @@ namespace localStar.Connection.Stream
             var task = handShake();
             task.Wait();
             if (!task.Result) return;
-            readThread = new Thread(handleRead);
-            wirteThread = new Thread(handleWrite);
-            readThread.Start();
-            wirteThread.Start();
+
+            handleReceiveThread = new Thread(this.handleReceive);
+            handleReceiveThread.Start();
         }
 
-        private void handleRead()
+        private void handleReceive()
         {
+            // TODO
+            while (this.isAvailable)
+            {
 
+            }
         }
-        private void handleWrite()
-        {
 
+        public async Task<bool> send(Message message)
+        {
+            // TODO
+            return true;
         }
 
         private async Task<bool> handShake()
         {
             if (!await exchangeId()) return false;
             Console.WriteLine("Try Connecting to {0}", this.nodeId);
-            if(isDupId()){
+            if (isDupId())
+            {
                 Console.WriteLine("Dup Id");
                 return false;
             }
             if (!await exchangeConfig()) return false;
             Console.WriteLine("{0} : exchange settings", this.nodeId);
+            if (!await shareNodeInfo()) return false;
             if (!await exchangeTimestamp()) return false;
-            Console.WriteLine("{0} : delay is {1} ms", this.nodeId, this.delay);
-
+            Console.WriteLine("{0} : Node handshake success", this.nodeId);
+            Console.WriteLine("NEW NODE: {0}", node.ToString());
             return true;
         }
 
+        private async Task<bool> shareNodeInfo()
+        {
+            byte[] buffer = Node.Tools.getBytesFromNode(NodeManager.getCurrentNode());
+            await sendBytes(buffer);
+            buffer = await getBytes();
+            this.node = Node.Tools.getNodeFromBytes(buffer);
+            return true;
+        }
         private async Task<bool> exchangeTimestamp()
         {
             byte[] buffer;
@@ -66,7 +89,7 @@ namespace localStar.Connection.Stream
                 long milliseconds = DateTime.Now.Ticks;
                 await sendBytes(BitConverter.GetBytes(milliseconds));
                 buffer = await getBytes();
-                delay = (int)((DateTime.Now.Ticks - BitConverter.ToInt64(buffer)) / TimeSpan.TicksPerMillisecond);
+                node.setDelay((int)((DateTime.Now.Ticks - BitConverter.ToInt64(buffer)) / TimeSpan.TicksPerMillisecond));
             }
             async Task receive()
             {
@@ -89,8 +112,9 @@ namespace localStar.Connection.Stream
             // TODO
             return true;
         }
-        private bool isDupId() {
-            if(NodeManager.getNodeById(nodeId) == null) return false;
+        private bool isDupId()
+        {
+            if (NodeManager.getNodeById(nodeId) == null) return false;
             else return true;
         }
         private async Task<bool> exchangeId()
