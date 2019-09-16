@@ -2,7 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using System.IO;
-using System.Collections;
+using System.Collections.Generic;
 using System.Net.Sockets;
 using localStar.Node;
 using localStar.Config;
@@ -10,22 +10,28 @@ using System.Text;
 
 namespace localStar.Connection.Stream
 {
-    public class NewMessageReceivedArgs : EventArgs
+    public class MessageReceivedArgs : EventArgs
     {
-        public Message message { get; set; }
+        public Message Message;
+        public MessageReceivedArgs(Message message)
+        {
+            this.Message = message;
+        }
     }
+    class RequestSendArgs : EventArgs
+    { }
     class NodeStream
     {
         private NetworkStream nodeStream;
         private String nodeId;
         private Node.Node node;
-        private long delay;
         private bool isPrior;
         private Thread handleReceiveThread;
-        //private Queue
 
         public bool isAvailable { get { return nodeStream.CanWrite; } }
-        public event EventHandler<NewMessageReceivedArgs> NewMessageReceived;
+        public event EventHandler<MessageReceivedArgs> MessageReceived;
+        private bool isSending = false;
+        public bool IsSending { get => isSending; }
 
         public NodeStream(NetworkStream nodeStream)
         {
@@ -40,19 +46,32 @@ namespace localStar.Connection.Stream
             handleReceiveThread.Start();
         }
 
-        private void handleReceive()
+        private async void handleReceive()
         {
             // TODO
             while (this.isAvailable)
             {
+                byte[] buffer = new byte[10];
+                await nodeStream.ReadAsync(buffer, 0, 10);
+                Header header = new Header(buffer);
+                buffer = new byte[header.Length];
+                await nodeStream.ReadAsync(buffer, 0, header.Length);
 
+                Message msg = new Message();
+                msg.Length = header.Length;
+                msg.data = buffer;
+                msg.Type = header.type;
+                MessageReceivedArgs args = new MessageReceivedArgs(msg);
+                MessageReceived?.Invoke(this, args);
             }
         }
 
-        public async Task<bool> send(Message message)
+        public void sendMessage(Message message, short connectionId)
         {
+            Header header = new Header(connectionId, message);
+            MemoryStream stream = new MemoryStream()
             // TODO
-            return true;
+            header.getEncoded();
         }
 
         private async Task<bool> handShake()

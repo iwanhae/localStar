@@ -25,7 +25,7 @@ NodeConnection
 		local고유ID를 자체 넘버링으로 변환
 		상대방으로부터 알려지지 않은 넘버링으로 메세지가 날라오면 NodeManager에 질의를 통해 어느 고유ID로 가야할 메세지인지 정함.
 			NodeManager는 들어온 메세지의 최단거리를 먼저 판단하고, ConnectionManager에 질의를 날려 고유 ID를 얻어온다.
-			넘버링은 2바이트의 공간을 가지며 우선순위가 높은쪽이 0~32,767까지, 낮은쪽이 32,768~65,536 까지 사용한다.
+			넘버링은 2바이트의 공간을 가지며 우선순위가 높은쪽이 1~32,767까지, 낮은쪽이 -32,768~-1 까지 사용한다.
 			넘버링은 새로 생성할때마다 하나씩 커지며, 최대값이후는 다시 0부터 시작한다.
 
 NodeConnectionManager
@@ -63,7 +63,7 @@ NodeConnectionManager
 
     바이트
     0
-    1   ConnectionId 2바이트 (새로운 커넥션을 만들때는 00으로 호출)
+    1   ConnectionId 2바이트
     2
     3   PayloadLength   (최대 약 64KB)
     4   Reserved

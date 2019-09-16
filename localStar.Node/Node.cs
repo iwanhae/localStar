@@ -21,10 +21,10 @@ namespace localStar.Node
         private Dictionary<string, Service> ConnectedService = new Dictionary<string, Service>();
         private Dictionary<string, Index> indexList = new Dictionary<string, Index>();
 
-        public Node shortestPathTo(string Id)
+        public Node shortestPathTo(string serviceId)    // Node의 경우 자기 자신을 이름으로 가지는 Service를 따로 등록하므로 Node도 탐색 가능.
         {
             Index index;
-            if (indexList.TryGetValue(Id, out index))
+            if (indexList.TryGetValue(serviceId, out index))
                 return ConnectedNode[index.nodeId];
             else return null;
         }
