@@ -6,7 +6,7 @@ using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
 using localStar.Config;
 
-namespace localStar.Node
+namespace localStar.Nodes
 {
     public static class NodeManager
     {
@@ -18,25 +18,24 @@ namespace localStar.Node
 
         /// <summary>
         /// 해당 URL로 가기위해 어느 localId로 가야하는지 알려줌
-        /// 못찾으면 0 return
+        /// 못찾으면 null return
         /// </summary>
         /// <param name="URL">.service 혹은 .node로 끝나는 주소</param>
         /// <returns>localId</returns>
-        public static ushort shortestPathTo(string URL)
+        public static ushort? shortestPathTo(string URL)
         {
             string serviceId = Tools.getServiceIdFromUrl(URL);
             if (serviceId == null) return 0;
 
             Node node = CurrentNode.shortestPathTo(serviceId);
 
-            if (node.id == CurrentNode.id)  // 목적지는 ServiceConnectionManager 에서 찾아야함.
-            {
-            }
+            if (node.id == CurrentNode.id) ;  // 목적지는 ServiceConnectionManager 에서 찾아야함.
+                                              // return NodeConnection.NodeConnectionManager.getLocaId(node);
             else // 목적지는 NodeConnectionManager 에서 찾아야함.
             {
 
             }
-            return 0;
+            return null;
         }
         public static Stream getKnownNodesStream()
         {

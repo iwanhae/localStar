@@ -1,7 +1,7 @@
 using System;
 using System.Collections;
 
-namespace localStar.Node
+namespace localStar.Nodes
 {
     class Index : IComparable
     {

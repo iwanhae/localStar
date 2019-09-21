@@ -1,4 +1,4 @@
-namespace localStar.Connection
+namespace localStar.Structure
 {
     public enum MessageType : byte
     {

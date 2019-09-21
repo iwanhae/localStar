@@ -1,45 +1,107 @@
+using System;
 using System.Net;
 using System.Net.Sockets;
 using System.Collections.Generic;
-using localStar.Connection.Stream;
+
+using localStar.Structure;
+using localStar.Nodes;
 
 namespace localStar.Connection
 {
-    public class NodeConnection
+    public class NodeConnection : Connection
     {
-        TcpClient tcpClient = null;
-        NodeStream stream = null;
+        private Node node;
+        private NodeStream nodeStream;
+        private Map<ushort, short> connectionIdMap = new Map<ushort, short>();
+        private short connectionIdPtr = 0;
+        private bool isPrior { get => nodeStream.isPrior; }
 
-        public ushort localId { get => (ushort)((IPEndPoint)tcpClient.Client.RemoteEndPoint).Port; }
-        public bool isConnected { get => tcpClient.Connected; }
-        public Queue<Message> messageToSend = new Queue<Message>();
-        /// <summary>
-        /// localId를 ConnectionId로 바꿔주는 Table
-        /// </summary>
-        /// <typeparam name="ushort">localId</typeparam>
-        /// <typeparam name="short">ConnectionId</typeparam>
-        /// <returns></returns>
-        public SortedDictionary<ushort, short> LocalId2ConnectionId = new SortedDictionary<ushort, short>();
-        /// <summary>
-        /// ConnectionId를 localId로 바꿔주는 Table
-        /// </summary>
-        /// <typeparam name="short">ConnectionId</typeparam>
-        /// <typeparam name="ushort">localId</typeparam>
-        /// <returns></returns>
-        public SortedDictionary<short, ushort> ConnectionId2LocalId = new SortedDictionary<short, ushort>();
+        private void handleReceived(object sender, MessageReceivedArgs args)
+        {
+            /*
+            On NodeStream
+                msg.Length = header.Length;
+                msg.data = buffer;
+                msg.Type = header.type;
+             */
+            Message message = args.Message;
+            message.LocalFrom = this.localId;
+            switch (message.Type)
+            {
+                case MessageType.NewConnection:
+                    break;
+                case MessageType.NormalConnection:
+                    break;
+                case MessageType.EndConnection:
+                    break;
+                case MessageType.RequestNodeinfo:
+                    break;
+                case MessageType.ResponseNodeinfo:
+                    break;
+                case MessageType.RequestTimestampEcho:
+                    break;
+                case MessageType.ResponseTimestampEcho:
+                    break;
+                default:
+                    break;
+            }
+        }
+        public override void Send(Message message)
+        {
+            if (message.Type == MessageType.NewConnection)
+            {
+                short connectionId = getNewConnectionId();
+                connectionIdMap.Add(message.LocalFrom, connectionId);
+                nodeStream.sendMessage(message, connectionId);
+            }
+            else if (message.Type == MessageType.NormalConnection)
+            {
+                short connectionId = connectionIdMap.Forward[message.LocalFrom];
+                nodeStream.sendMessage(message, connectionId);
+            }
+            else if (message.Type == MessageType.EndConnection)
+            {
+                short connectionId = connectionIdMap.Forward[message.LocalFrom];
+                nodeStream.sendMessage(message, connectionId);
+                connectionIdMap.RemoveBackward(connectionId);
+            }
+            else
+            {
+                nodeStream.sendMessage(message, 0);
+            }
+        }
 
+        private short getNewConnectionId()
+        {
+            if (isPrior)
+            {
+                while (connectionIdMap.Backward.ContainsKey(++connectionIdPtr))
+                    if (connectionIdPtr == short.MaxValue) connectionIdPtr = 0;
+            }
+            else
+            {
+                while (connectionIdMap.Backward.ContainsKey(--connectionIdPtr))
+                    if (connectionIdPtr == short.MinValue) connectionIdPtr = 0;
+            }
+            return connectionIdPtr;
+        }
 
-        public NodeConnection(IPEndPoint address)  // 연결 요청 날림
+        protected override void handleRead() { }
+
+        /// <param name="address">요청을 날릴 주소</param>
+        public NodeConnection(IPEndPoint address)
         {
             tcpClient = new TcpClient();
             tcpClient.Connect(address);
-            stream = new NodeStream(tcpClient.GetStream());
+            Init(tcpClient);
         }
-        public NodeConnection(TcpClient tc)    // 받은 요청 처리
+        /// <param name="tcpClient">이미 통신준비가 완료된 객체</param>
+        public NodeConnection(TcpClient tcpClient) => Init(tcpClient);
+        private void Init(TcpClient tcpClient)
         {
-            tcpClient = tc;
-            stream = new NodeStream(tc.GetStream());
+            if (!tcpClient.Connected) throw new ArgumentException("사용 불가능한 연결");
+            nodeStream = new NodeStream(tcpClient.GetStream());
+            nodeStream.MessageReceived += handleReceived;
         }
-
     }
 }

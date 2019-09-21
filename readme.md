@@ -35,3 +35,80 @@
     4. 접속 가능한 모든 노드에게 자료 요청을 날림.
     5. 자료 교류에는 NodeManager에 CurrentNode가 그대로 보내짐.
     6. 받은쪽에서는 하위 노드중 자기 자신을 전부 제거하고 자신의 Child에 추가함. (재귀 방지)
+## 프로그램구조
+
+```mermaid
+graph TD
+A2(Service)
+A1(Service Connection)
+A{Service Connection Manager}
+
+C2(Client)
+C1(Client Connection)
+C{Client Connection Manager}
+
+B2(Node)
+B1(Node Connection)
+B{Node Connection Manager}
+
+C --> B
+
+A2 -.- A1
+A1 --- A
+C2 --- C1
+C1 --- C
+B2 === B1
+B1 --- B
+
+C --> A
+
+
+B --> A
+```
+
+
+
+```mermaid
+sequenceDiagram
+	participant Client
+	participant ClientConn
+	participant Node
+	participant NodeConnMgr
+	participant NodeConn
+	
+	Client->>ClientConn:Create Connection
+	ClientConn->>Node:Ask Path
+	Node->>ClientConn: localId
+	ClientConn->>NodeConnMgr:Message
+	NodeConnMgr->>NodeConnMgr:Convert localFrom to ConnectionId
+	NodeConnMgr->>NodeConn:Message
+	NodeConn->>NodeConnMgr:Response
+	NodeConnMgr->>NodeConnMgr:Convert ConnectionId to localTo
+	NodeConnMgr->>ClientConn:Response
+	ClientConn->>Client:Response	
+```
+
+
+
+```mermaid
+sequenceDiagram
+	participant NodeConn
+	participant Node
+	participant ServiceConnMgr
+	participant ServiceConn
+	participant Service
+	NodeConn->>Node:Ask Path
+	Node->>ServiceConnMgr:Create New Connection
+	ServiceConnMgr->>ServiceConn:Create One
+	ServiceConn->>Service:Establish Connection
+	ServiceConn->>ServiceConnMgr:localId
+	ServiceConnMgr->>Node:localId
+	Node->>NodeConn:localId
+	NodeConn->>NodeConn:Record ConnectionId to localTo
+	NodeConn->>ServiceConn:Message
+	ServiceConn->>Service:Request
+	Service->>ServiceConn:Response
+	ServiceConn->>NodeConn:Message
+	
+```
+

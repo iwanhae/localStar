@@ -4,7 +4,7 @@ using System.IO;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.Text;
 
-namespace localStar.Node
+namespace localStar.Nodes
 {
     static class Tools
     {

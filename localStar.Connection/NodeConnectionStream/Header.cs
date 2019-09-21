@@ -4,12 +4,13 @@ using System.Threading.Tasks;
 using System.IO;
 using System.Collections;
 using System.Net.Sockets;
-using localStar.Node;
+using localStar.Nodes;
 using localStar.Config;
 using System.Text;
-using localStar.Connection;
+using localStar.NodeConnection;
+using localStar.Structure;
 
-namespace localStar.Connection.Stream
+namespace localStar.Connection
 {
     public class Header
     {

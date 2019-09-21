@@ -4,28 +4,19 @@ using System.Threading.Tasks;
 using System.IO;
 using System.Collections.Generic;
 using System.Net.Sockets;
-using localStar.Node;
+using localStar.Nodes;
 using localStar.Config;
 using System.Text;
+using localStar.Structure;
 
-namespace localStar.Connection.Stream
+namespace localStar.Connection
 {
-    public class MessageReceivedArgs : EventArgs
-    {
-        public Message Message;
-        public MessageReceivedArgs(Message message)
-        {
-            this.Message = message;
-        }
-    }
-    class RequestSendArgs : EventArgs
-    { }
     class NodeStream
     {
         private NetworkStream nodeStream;
         private String nodeId;
-        private Node.Node node;
-        private bool isPrior;
+        public Node node;
+        public bool isPrior { get; private set; }
         private Thread handleReceiveThread;
 
         public bool isAvailable { get { return nodeStream.CanWrite; } }
@@ -48,30 +39,35 @@ namespace localStar.Connection.Stream
 
         private async void handleReceive()
         {
-            // TODO
-            while (this.isAvailable)
+            try
             {
-                byte[] buffer = new byte[10];
-                await nodeStream.ReadAsync(buffer, 0, 10);
-                Header header = new Header(buffer);
-                buffer = new byte[header.Length];
-                await nodeStream.ReadAsync(buffer, 0, header.Length);
+                while (this.isAvailable)
+                {
+                    byte[] buffer = new byte[10];
+                    await nodeStream.ReadAsync(buffer, 0, 10);
+                    Header header = new Header(buffer);
+                    buffer = new byte[header.Length];
+                    await nodeStream.ReadAsync(buffer, 0, header.Length);
 
-                Message msg = new Message();
-                msg.Length = header.Length;
-                msg.data = buffer;
-                msg.Type = header.type;
-                MessageReceivedArgs args = new MessageReceivedArgs(msg);
-                MessageReceived?.Invoke(this, args);
+                    Message msg = new Message();
+                    msg.data = buffer;
+                    msg.Type = header.type;
+                    MessageReceivedArgs args = new MessageReceivedArgs(msg);
+                    MessageReceived?.Invoke(this, args);
+                }
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine("ERROR FROM handleReceive, Connection with {0}", this.nodeId);
+                Console.WriteLine(e.ToString());
             }
         }
 
         public void sendMessage(Message message, short connectionId)
         {
             Header header = new Header(connectionId, message);
-            MemoryStream stream = new MemoryStream()
-            // TODO
-            header.getEncoded();
+            MemoryStream stream = new MemoryStream(Tools.concat(header.getEncoded(), message.data), false);
+            StreamPipe.Pipe.Connect(stream, nodeStream);
         }
 
         private async Task<bool> handShake()
@@ -94,10 +90,10 @@ namespace localStar.Connection.Stream
 
         private async Task<bool> shareNodeInfo()
         {
-            byte[] buffer = Node.Tools.getBytesFromNode(NodeManager.getCurrentNode());
+            byte[] buffer = Nodes.Tools.getBytesFromNode(NodeManager.getCurrentNode());
             await sendBytes(buffer);
             buffer = await getBytes();
-            this.node = Node.Tools.getNodeFromBytes(buffer);
+            this.node = Nodes.Tools.getNodeFromBytes(buffer);
             return true;
         }
         private async Task<bool> exchangeTimestamp()

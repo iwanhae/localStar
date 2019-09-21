@@ -52,6 +52,7 @@ namespace localStar.StreamPipe
         /// <summary>
         /// 두 파이프를 연결해줌.
         /// 주의사항: canWrite한 Stream은 Dispose 해줘야 등록 해제됨.
+        /// 주의사항: From에다가 NetworkStream넣으면 안됨.
         /// 읽기만 가능하면 다 읽은 후 알아서 해제됨.
         /// </summary>
         /// <param name="from"></param>
@@ -59,8 +60,7 @@ namespace localStar.StreamPipe
         public static void Connect(Stream from, Stream to)
         {
             addPipe(new PipeLine(from, to));
-            if (loop.ThreadState == ThreadState.Unstarted
-                || loop.ThreadState == ThreadState.Stopped) loop.Start();
+            if (loop.ThreadState == ThreadState.Unstarted) loop.Start();
         }
         private static void addPipe(PipeLine pipe)
         {

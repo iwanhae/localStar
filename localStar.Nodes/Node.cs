@@ -4,7 +4,7 @@ using System;
 using System.Runtime.Serialization;
 using localStar.Config;
 
-namespace localStar.Node
+namespace localStar.Nodes
 {
     [Serializable]
     public class Node : ISerializable

@@ -4,7 +4,7 @@ using System;
 using System.Runtime.Serialization;
 using localStar.Config;
 
-namespace localStar.Node
+namespace localStar.Nodes
 {
     public class Service : ISerializable
     {
@@ -13,7 +13,8 @@ namespace localStar.Node
         public int delay { get; set; } //서비스가 소속된 노드와 서비스간의 지연
         public Node Parent { get; set; }
 
-        public Service(string name, IPEndPoint address, Node Parent = null, int delay = 0){
+        public Service(string name, IPEndPoint address, Node Parent = null, int delay = 0)
+        {
             this.name = name;
             this.address = address;
             this.Parent = Parent;
