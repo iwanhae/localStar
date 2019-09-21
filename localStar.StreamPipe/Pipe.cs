@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Threading;
 using System.IO;
 using System;
@@ -7,22 +7,30 @@ namespace localStar.StreamPipe
 {
     public static class Pipe
     {
-        private static Queue<PipeLine> Pipes = new Queue<PipeLine>();
-        private static SortedSet<Stream> ReadingStreams = new SortedSet<Stream>();
+        private static ConcurrentQueue<PipeLine> Pipes = new ConcurrentQueue<PipeLine>();
         private static Thread loop = new Thread(pipeLoop);
 
-        public static int Length { get => ReadingStreams.Count; }
+        public static int Length { get => Pipes.Count; }
 
         private static void pipeLoop()
         {
             int pointer = 0;
             bool canISleep = true;
-            while (Pipes.Count != 0)
+            PipeLine pipe;
+            while (true)
             {
-                PipeLine pipe = Pipes.Dequeue();
+                if (pointer++ > Pipes.Count)
+                {
+                    pointer = 0;
+                    if (canISleep) Thread.Sleep(100);
+                    canISleep = true;
+                }
+                if (Pipes.Count == 0) continue;
+                Pipes.TryDequeue(out pipe);
                 try
                 {
-                    if (ReadyToRead(pipe.from) && pipe.to.CanWrite)
+                    if (pipe.CloseTheStream) closeThePipe(pipe);
+                    else if (ReadyToRead(pipe.from) && pipe.to.CanWrite)
                     {
                         canISleep = false;
                         // Message 의 최대 크기는 data (ushort.Max) + header (10)
@@ -30,24 +38,20 @@ namespace localStar.StreamPipe
                         // 단일 메세지 스트림은 한번에 전송됨.
                         pipe.from.CopyTo(pipe.to, length);
                     }
-                    if ((!pipe.from.CanWrite) && (pipe.from.Length == pipe.from.Position)) removePipe(pipe);    // 더 쓸수 없는데 다 읽었으면.
-                    else if (!(pipe.from.CanRead && pipe.to.CanWrite)) removePipe(pipe);   // 못읽거나 못쓰게 되면.
+                    else if (!pipe.from.CanRead) removePipe(pipe);
+                    else if (!pipe.to.CanWrite) removePipe(pipe);
+                    else if ((!pipe.from.CanWrite) && (pipe.from.Length == pipe.from.Position)) removePipe(pipe);    // 더 쓸수 없는데 다 읽었으면.
                     else Pipes.Enqueue(pipe);
                 }
                 catch
                 {
-                    removePipe(pipe);
-                }
-
-                pointer++;
-                if (pointer >= Pipes.Count)
-                {
-                    pointer = 0;
-                    if (canISleep) Thread.Sleep(100);
-                    canISleep = true;
+                    closeThePipe(pipe);
                 }
             }
-            loop = new Thread(pipeLoop);
+        }
+        public static void Init()
+        {
+            if (loop.ThreadState == ThreadState.Unstarted) loop.Start();
         }
         /// <summary>
         /// 두 파이프를 연결해줌.
@@ -57,32 +61,47 @@ namespace localStar.StreamPipe
         /// </summary>
         /// <param name="from"></param>
         /// <param name="to"></param>
-        public static void Connect(Stream from, Stream to)
+        public static void Connect(Stream from, Stream to, bool CloseTheStream = false)
         {
-            addPipe(new PipeLine(from, to));
-            if (loop.ThreadState == ThreadState.Unstarted) loop.Start();
+            addPipe(new PipeLine(from, to, CloseTheStream));
         }
         private static void addPipe(PipeLine pipe)
         {
-            if (ReadingStreams.TryGetValue(pipe.from, out _)) throw new StreamBeingPipedException(pipe.from);
             if (!(pipe.from.CanRead)) throw new StreamIsNotUsableException(pipe.from);
             if (!(pipe.to.CanWrite)) throw new StreamIsNotUsableException(pipe.to);
 
 
             Pipes.Enqueue(pipe);
-            ReadingStreams.Add(pipe.from);
+        }
+        private static async void closeThePipe(PipeLine pipe)
+        {
+            try
+            {
+                await pipe.to.WriteAsync(new byte[0]);
+                pipe.to.Close();
+            }
+            catch { }
+            try
+            {
+                pipe.from.Close();
+            }
+            catch { }
+            removePipe(pipe);
         }
         private static void removePipe(PipeLine pipe)
-        {
-            ReadingStreams.Remove(pipe.from);
-        }
+        { }
         private static bool ReadyToRead(Stream stream)
         {
-            if (stream.CanSeek && stream.Position == stream.Length) return false;
-            // MemoryStream, FileStream의 경우 탐색가능한데 다 읽었으면, 읽을게 없다고 판단.
-            if (stream.Length == 0) return false;
-            // NetworkStream의 경우 남은 데이터가 없으면 다 읽음
-            return true;
+            try
+            {
+                if (stream.CanSeek && stream.Position == stream.Length) return false;
+                // MemoryStream, FileStream의 경우 탐색가능한데 다 읽었으면, 읽을게 없다고 판단.
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
         }
     }
 
@@ -90,7 +109,8 @@ namespace localStar.StreamPipe
     {
         public Stream from;
         public Stream to;
-        public PipeLine(Stream from, Stream to) { this.from = from; this.to = to; }
+        public bool CloseTheStream;
+        public PipeLine(Stream from, Stream to, bool CloseTheStream = false) { this.from = from; this.to = to; this.CloseTheStream = CloseTheStream; }
     }
     class StreamBeingPipedException : Exception
     {

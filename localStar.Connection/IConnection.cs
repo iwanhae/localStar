@@ -8,32 +8,37 @@ namespace localStar.Connection
 {
     public interface IConnection
     {
-        ushort localId { get; }
+        int localId { get; }
         void Send(Message message);
         void Close();
     }
     public abstract class Connection : IConnection, IDisposable
     {
-        public ushort localId { get => (ushort)((IPEndPoint)tcpClient.Client.RemoteEndPoint).Port; }
+        public int localId { get => this.GetHashCode(); }
         protected Thread readThread;
         protected TcpClient tcpClient;
 
 
         protected abstract void handleRead();
-        private void registerConnection()
+        protected virtual void registerConnection()
         {
             ConnectionManger.Register(this);
         }
-        public abstract void Send(Message message);
-        public void Close()
+
+        protected virtual void deRegisterConnection()
         {
             ConnectionManger.DeRegister(this);
-            this.Dispose();
         }
+        public abstract void Send(Message message);
+        public abstract void Close();
 
-        public void Dispose()
+        public virtual void Dispose()
         {
-            readThread.Interrupt();
+            try
+            {
+                readThread.Interrupt();
+            }
+            catch { }
         }
     }
 }

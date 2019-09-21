@@ -35,6 +35,7 @@ namespace localStar.Nodes
             Service n = (Service)obj;
             if (!this.name.Equals(n.name)) return false;
             if (!this.Parent.Equals(n.Parent)) return false;
+            if (!this.address.Equals(n.address)) return false;
             return true;
         }
 

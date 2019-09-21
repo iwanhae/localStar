@@ -18,15 +18,20 @@ namespace localStar.Nodes
 
         // Comment: 이름과 내용.
         private Dictionary<string, Node> ConnectedNode = new Dictionary<string, Node>();
-        private Dictionary<string, Service> ConnectedService = new Dictionary<string, Service>();
+        private Dictionary<string, ServiceList> ConnectedService = new Dictionary<string, ServiceList>();
         private Dictionary<string, Index> indexList = new Dictionary<string, Index>();
 
-        public Node shortestPathTo(string serviceId)    // Node의 경우 자기 자신을 이름으로 가지는 Service를 따로 등록하므로 Node도 탐색 가능.
+        public Node shortestPathTo(string serviceName)    // Node의 경우 자기 자신을 이름으로 가지는 Service를 따로 등록하므로 Node도 탐색 가능.
         {
             Index index;
-            if (indexList.TryGetValue(serviceId, out index))
-                return ConnectedNode[index.nodeId];
+            if (indexList.TryGetValue(serviceName, out index))
+                return this.getNodebyId(index.nodeId);
             else return null;
+        }
+        public void setServiceList(Dictionary<string, ServiceList> ConnectedService)
+        {
+            this.ConnectedService = ConnectedService;
+            refreshIndex();
         }
         public void refreshIndex()
         {
@@ -34,13 +39,14 @@ namespace localStar.Nodes
             Index tmp;
             foreach (var pair in ConnectedService)
             {
+                Service s = pair.Value.getLowestDelayOne();
                 if (indexList.TryGetValue(pair.Key, out tmp))
                 {
-                    if (pair.Value.delay < tmp.delay)
-                        indexList.Add(pair.Key, new Index(pair.Key, this.id, pair.Value.delay));
+                    if (s.delay < tmp.delay)
+                        indexList.Add(pair.Key, new Index(pair.Key, this.id, s.delay));
                 }
                 else
-                    indexList.Add(pair.Key, new Index(pair.Key, this.id, pair.Value.delay));
+                    indexList.Add(pair.Key, new Index(pair.Key, this.id, s.delay));
             }
             foreach (var node in ConnectedNode.Values)
             {
@@ -128,6 +134,20 @@ namespace localStar.Nodes
             return id.GetHashCode();
         }
 
+        public Node getNodebyId(string nodeId)
+        {
+            if (this.id == nodeId) return this;
+            else
+            {
+                foreach (var pair in ConnectedNode)
+                {
+                    Node node = pair.Value.getNodebyId(nodeId);
+                    if (node != null) return node;
+                }
+                return null;
+            }
+        }
+
         public Node(SerializationInfo info, StreamingContext context)
         {
             id = info.GetString("id");
@@ -135,7 +155,7 @@ namespace localStar.Nodes
             IPAddress ip = new IPAddress((byte[])info.GetValue("ip", typeof(byte[])));
             address = new IPEndPoint(ip, info.GetInt32("port"));
             ConnectedNode = (Dictionary<string, Node>)info.GetValue("ConnectedNode", typeof(Dictionary<string, Node>));
-            ConnectedService = (Dictionary<string, Service>)info.GetValue("ConnectedService", typeof(Dictionary<string, Service>));
+            ConnectedService = (Dictionary<string, ServiceList>)info.GetValue("ConnectedService", typeof(Dictionary<string, ServiceList>));
         }
     }
 }

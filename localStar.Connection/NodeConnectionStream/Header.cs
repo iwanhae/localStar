@@ -7,7 +7,6 @@ using System.Net.Sockets;
 using localStar.Nodes;
 using localStar.Config;
 using System.Text;
-using localStar.NodeConnection;
 using localStar.Structure;
 
 namespace localStar.Connection

@@ -1,24 +1,30 @@
-using System.Collections.Generic;
-
+using System;
+using System.Threading;
 using localStar.Connection;
+using System.Collections.Generic;
+using System.Collections.Concurrent;
 namespace localStar
 {
     public static class ConnectionManger
     {
-        private static Dictionary<ushort, IConnection> dict = new Dictionary<ushort, IConnection>();
+        private static ConcurrentDictionary<int, IConnection> dict = new ConcurrentDictionary<int, IConnection>();
 
-        public static IConnection GetConnection(ushort localId)
+        public static IConnection GetConnection(int localId)
         {
             return dict[localId];
         }
         public static void Register(IConnection connection)
         {
-            dict[connection.localId] = connection;
+            if (dict.ContainsKey(connection.localId))
+            {
+                Console.WriteLine(connection.localId);
+            }
+            dict.TryAdd(connection.localId, connection);
         }
 
         public static void DeRegister(IConnection connection)
         {
-            dict.Remove(connection.localId);
+            dict.TryRemove(connection.localId, out _);
         }
     }
 }

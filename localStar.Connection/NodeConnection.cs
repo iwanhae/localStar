@@ -12,7 +12,7 @@ namespace localStar.Connection
     {
         private Node node;
         private NodeStream nodeStream;
-        private Map<ushort, short> connectionIdMap = new Map<ushort, short>();
+        private Map<int, short> connectionIdMap = new Map<int, short>();
         private short connectionIdPtr = 0;
         private bool isPrior { get => nodeStream.isPrior; }
 
@@ -102,6 +102,11 @@ namespace localStar.Connection
             if (!tcpClient.Connected) throw new ArgumentException("사용 불가능한 연결");
             nodeStream = new NodeStream(tcpClient.GetStream());
             nodeStream.MessageReceived += handleReceived;
+        }
+
+        public override void Close()
+        {
+            throw new NotImplementedException();
         }
     }
 }
