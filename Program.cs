@@ -13,7 +13,6 @@ namespace localStar
         static Thread DNSThread = new Thread(DNS.Service.Start);
         static void Main(string[] args)
         {
-            StreamPipe.Pipe.Init();
             Service s = new Service("iptime", new IPEndPoint(IPAddress.Parse("192.168.0.1"), 80));
             Service n = new Service("nginx", new IPEndPoint(IPAddress.Parse("192.168.1.1"), 3000));
             Service w = new Service("web", new IPEndPoint(IPAddress.Parse("127.0.0.1"), 5008));
@@ -26,7 +25,10 @@ namespace localStar
 
             Console.WriteLine("Press any key to stop server");
 
+            HandleLoop.Init();
+
             Timer t = new Timer(Test, null, 1000, 1000);
+
             while (true)
             {
                 count++;

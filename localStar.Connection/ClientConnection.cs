@@ -3,16 +3,19 @@ using localStar.Structure;
 using System;
 using System.Net.Sockets;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace localStar.Connection
 {
     public class ClientConnection : Connection
     {
-        private IConnection connection;
-        private int localTo = 0;
-        private bool onClosing = false;
-
         public string destinedService = "";
+
+        private IConnection connection;
+        private bool onClosing = false;
+        private Task<int> readTask = null;
+        private byte[] buffer = new byte[ushort.MaxValue];
+        private DateTime lastActivity = DateTime.Now;
         public ClientConnection(TcpClient tcpClient)
         {
             HttpHeader header;
@@ -37,20 +40,24 @@ namespace localStar.Connection
             };
 
             connection.Send(message);
+            HandleLoop.addJob(handleRead);
 
-            readThread = new Thread(handleRead);
-            readThread.Start();
         }
-        protected async override void handleRead()
+        public JobStatus handleRead()
         {
             try
             {
-                NetworkStream stream = tcpClient.GetStream();
-                stream.ReadTimeout = 1000;
-                byte[] buffer = new byte[ushort.MaxValue];
-                while (tcpClient.Connected)
+                if (!tcpClient.Connected) return JobStatus.Failed;
+                else if (readTask == null)
                 {
-                    int len = await stream.ReadAsync(buffer);
+                    readTask = tcpClient.GetStream().ReadAsync(this.buffer).AsTask();
+                    return JobStatus.Pending;
+                }
+                else if (readTask.IsCompleted)
+                {
+                    int len = readTask.Result;
+                    readTask = tcpClient.GetStream().ReadAsync(this.buffer).AsTask();
+
                     if (len != 0)
                     {
                         byte[] tmp = new byte[len];
@@ -61,23 +68,33 @@ namespace localStar.Connection
                             Type = MessageType.NormalConnection,
                             data = tmp
                         });
+                        lastActivity = DateTime.Now;
+                        return JobStatus.Good;
                     }
                     else
                     {
                         sendConnectionEnd();
-                        break;
+                        Close();
+                        return JobStatus.Failed;
                     }
+                }
+                else
+                {
+                    if((DateTime.Now - lastActivity).Seconds > 3)
+                    {
+                        sendConnectionEnd();
+                        Close();
+                        return JobStatus.Failed;
+                    }
+                    return JobStatus.Pending;
                 }
             }
             catch
             {
-                try
-                {
-                    sendConnectionEnd();
-                }
-                catch { }
+                try { sendConnectionEnd(); } catch { }
+                Close();
+                return JobStatus.Failed;
             }
-            Close();
         }
         private HttpHeader readHeader(TcpClient tcpClient)
         {
@@ -115,6 +132,7 @@ namespace localStar.Connection
             {
                 try { tcpClient.GetStream().Write(message.data); }
                 catch { sendConnectionEnd(); Close(); }
+                lastActivity = DateTime.Now;
             }
         }
         public override void Close()
@@ -124,11 +142,6 @@ namespace localStar.Connection
                 try { tcpClient.GetStream().Write(new byte[0], 0, 0); }
                 catch { }
                 try { tcpClient.Close(); }
-                catch { }
-            }
-            if (readThread.ThreadState == ThreadState.Running)
-            {
-                try { readThread.Interrupt(); }
                 catch { }
             }
         }

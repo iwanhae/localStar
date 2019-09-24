@@ -66,25 +66,25 @@ C --> A
 B --> A
 ```
 
-
+## 다른노드와의 연결 성립
 
 ```mermaid
 sequenceDiagram
 	participant Client
 	participant ClientConn
 	participant Node
-	participant NodeConnMgr
 	participant NodeConn
+	participant ExternalNode
 	
 	Client->>ClientConn:Create Connection
 	ClientConn->>Node:Ask Path
 	Node->>ClientConn: localId
-	ClientConn->>NodeConnMgr:Message
-	NodeConnMgr->>NodeConnMgr:Convert localFrom to ConnectionId
-	NodeConnMgr->>NodeConn:Message
-	NodeConn->>NodeConnMgr:Response
-	NodeConnMgr->>NodeConnMgr:Convert ConnectionId to localTo
-	NodeConnMgr->>ClientConn:Response
+	ClientConn->>NodeConn:Message
+	NodeConn->>NodeConn:Convert localFrom to ConnectionId
+	NodeConn->>ExternalNode:Message
+	ExternalNode->>NodeConn:Response Message
+	NodeConn->>NodeConn:Convert ConnectionId to localTo
+	NodeConn->>ClientConn:Response Message
 	ClientConn->>Client:Response	
 ```
 

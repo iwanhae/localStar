@@ -2,7 +2,7 @@ using localStar.Nodes;
 using localStar.Structure;
 using System;
 using System.Net.Sockets;
-using System.Threading;
+using System.Threading.Tasks;
 /*
 TODO:   Close할때 ServiceConnectionManager에 등록 해제하기
  */
@@ -13,6 +13,9 @@ namespace localStar.Connection
         private IConnection connection = null;
         private Service service;
         private bool onClosing = false;
+        private Task<int> readTask = null;
+        private byte[] buffer = new byte[ushort.MaxValue];
+
         public ServiceConnection(Service service)
         {
             tcpClient = new TcpClient();
@@ -20,22 +23,29 @@ namespace localStar.Connection
             task.Wait(1000);
             if (!task.IsCompleted) throw new Exception("Can not connect to service " + service.name);
 
-            readThread = new Thread(handleRead);
-            // readThread.Start(); 어떤 IConnection과 소통해야되는지 알기 전까지 지연.
-
             this.service = service;
         }
-        protected async override void handleRead()
+        public JobStatus handleRead()
         {
             try
             {
-                NetworkStream stream = tcpClient.GetStream();
-                stream.ReadTimeout = 1000;
-                byte[] buffer = new byte[ushort.MaxValue];
-
-                while (tcpClient.Connected)
+                if (!tcpClient.Connected) return JobStatus.Failed ;
+                /*
+                else if (readTask == null)
                 {
-                    int len = await stream.ReadAsync(buffer);
+                    readTask = tcpClient.GetStream().ReadAsync(this.buffer).AsTask();
+                    return true;
+                }
+                */
+                else // if (readTask.IsCompleted)
+                {
+                    if (!tcpClient.GetStream().DataAvailable)
+                    {
+                        tcpClient.GetStream().Write(new byte[0]);
+                        return JobStatus.Pending;
+                    }
+                    int len = tcpClient.GetStream().Read(this.buffer);
+                    // readTask = tcpClient.GetStream().ReadAsync(this.buffer).AsTask();
                     if (len != 0)
                     {
                         byte[] tmp = new byte[len];
@@ -46,17 +56,22 @@ namespace localStar.Connection
                             Type = MessageType.NormalConnection,
                             data = tmp
                         });
+                        return JobStatus.Good;
                     }
                     else
                     {
                         sendConnectionEnd();
-                        break;
+                        Close();
+                        return JobStatus.Failed;
                     }
                 }
             }
             catch
-            { try { sendConnectionEnd(); } catch { } }
-            Close();
+            {
+                try { sendConnectionEnd(); } catch { }
+                Close();
+                return JobStatus.Failed;
+            }
         }
         public override void Send(Message message)
         {
@@ -81,7 +96,7 @@ namespace localStar.Connection
             else if (message.Type == MessageType.NewConnection)
             {
                 connection = message.From;
-                readThread.Start();
+                HandleLoop.addJob(handleRead);
                 try { tcpClient.GetStream().Write(message.data); }
                 catch { sendConnectionEnd(); Close(); }
             }
@@ -93,11 +108,6 @@ namespace localStar.Connection
                 try { tcpClient.GetStream().Write(new byte[0], 0, 0); }
                 catch { }
                 try { tcpClient.Close(); }
-                catch { }
-            }
-            if (readThread.ThreadState == ThreadState.Running)
-            {
-                try { readThread.Interrupt(); }
                 catch { }
             }
         }

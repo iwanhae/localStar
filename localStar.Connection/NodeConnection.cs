@@ -86,7 +86,7 @@ namespace localStar.Connection
             return connectionIdPtr;
         }
 
-        protected override void handleRead() { }
+        protected bool handleRead() { return false; }
 
         /// <param name="address">요청을 날릴 주소</param>
         public NodeConnection(IPEndPoint address)
