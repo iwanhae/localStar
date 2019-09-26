@@ -62,5 +62,13 @@ namespace localStar.Nodes
         {
             return CurrentNode.getNodebyId(nodeId);
         }
+
+        public static int setNodeDelay(string nodeId, int delay)
+        {
+            Node tmp = getNodeById(nodeId);
+            if (tmp != null) tmp.delay = delay;
+            else return -1;
+            return delay;
+        }
     }
 }

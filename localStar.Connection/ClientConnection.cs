@@ -1,8 +1,8 @@
 using localStar.Nodes;
 using localStar.Structure;
+using localStar.Logger;
 using System;
 using System.Net.Sockets;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace localStar.Connection
@@ -24,9 +24,12 @@ namespace localStar.Connection
             try { header = readHeader(tcpClient); }
             catch { return; }
 
+            Log.debug("handle New Client {0}, Routing to {1}", this.localId, destinedService);
+
             connection = NodeManager.shortestPathTo(destinedService);
             if (connection == null)
             {
+                Log.error("Can not make new connection to {0}", destinedService);
                 header.closeWithNotFound();
                 return;
             }
@@ -80,7 +83,13 @@ namespace localStar.Connection
                 }
                 else
                 {
-                    if((DateTime.Now - lastActivity).Seconds > 3)
+                    if (readTask.IsFaulted || readTask.IsCanceled)
+                    {
+                        sendConnectionEnd();
+                        Close();
+                        return JobStatus.Failed;
+                    }
+                    else if ((DateTime.Now - lastActivity).Seconds > 3)
                     {
                         sendConnectionEnd();
                         Close();
@@ -144,6 +153,7 @@ namespace localStar.Connection
                 try { tcpClient.Close(); }
                 catch { }
             }
+            Log.debug("Client {0} Disconnected", this.localId);
         }
         private void sendConnectionEnd()
         {

@@ -1,3 +1,4 @@
+using localStar.Logger;
 using System;
 using System.Threading;
 using System.Collections.Generic;
@@ -19,10 +20,8 @@ namespace localStar.Connection
                 worker[i].Start();
             }
         }
-        public static void Test(object _)
-        {
-            if (!jobQueue.IsEmpty) Console.WriteLine("Working:\t{0}",jobQueue.Count);
-        }
+
+        public static int getCount() => jobQueue.Count;
         public static void addJob(Func<JobStatus> job)
         {
             if (job != null) jobQueue.Enqueue(job);
@@ -31,7 +30,6 @@ namespace localStar.Connection
         {
             int pendingCounter = 0;
             int Counter = 0;
-            uint DoneCounter = 0;
             while (true)
             {
                 Func<JobStatus> job = null;
@@ -55,9 +53,10 @@ namespace localStar.Connection
                         }
                     }
                     catch { }
-                    if(jobQueue.Count < Counter)
+                    if (jobQueue.Count < Counter)
                     {
-                        if (pendingCounter == Counter) {
+                        if (pendingCounter == Counter)
+                        {
                             Thread.Sleep(10);
                         }
                         Counter = 0;

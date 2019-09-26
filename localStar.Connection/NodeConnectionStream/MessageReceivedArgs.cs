@@ -6,9 +6,11 @@ namespace localStar.Connection
     public class MessageReceivedArgs : EventArgs
     {
         public Message Message;
-        public MessageReceivedArgs(Message message)
+        public short ConnectionId;
+        public MessageReceivedArgs(Message message, short ConnectionId)
         {
             this.Message = message;
+            this.ConnectionId = ConnectionId;
         }
     }
 }

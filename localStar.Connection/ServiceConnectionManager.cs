@@ -14,16 +14,6 @@ namespace localStar.Connection
     public static class ServiceConnectionManager
     {
         static SortedDictionary<string, ServiceList> availableService = new SortedDictionary<string, ServiceList>();
-        static SortedDictionary<int, ServiceConnection> Connections = new SortedDictionary<int, ServiceConnection>();
-
-        public static void deRegisterConnection(ServiceConnection connection)
-        {
-            // Connections.Remove(connection.localId);
-        }
-        public static void registerConnection(ServiceConnection connection)
-        {
-            // Connections[connection.localId] = connection;
-        }
 
         public static ServiceConnection getConnection(string serviceName)
         {

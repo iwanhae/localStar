@@ -52,7 +52,7 @@ namespace localStar.Connection
                     Message msg = new Message();
                     msg.data = buffer;
                     msg.Type = header.type;
-                    MessageReceivedArgs args = new MessageReceivedArgs(msg);
+                    MessageReceivedArgs args = new MessageReceivedArgs(msg, header.connectionId);
                     MessageReceived?.Invoke(this, args);
                 }
             }

@@ -117,6 +117,7 @@ namespace localStar
                     {
                         wasNextLine = true;
                         iskey = true;
+                        key = RegularForm(key);
                         KVSet.Add(key.Trim(), value.Trim());
                         key = "";
                         value = "";
@@ -134,6 +135,30 @@ namespace localStar
                 }
             }
             if (!isValidHeader) throw new Exception("Fail to parse Header");
+        }
+        private string RegularForm(string key)
+        {
+            key = key.Trim();
+            StringBuilder sb = new StringBuilder(key.Length);
+
+            bool isDash = true;
+            for (int i = 0; i < key.Length; i++)
+            {
+                if (isDash)
+                {
+                    sb.Append(char.ToUpper(key[i]));
+                    isDash = false;
+                }
+                else if (key[i] == '-')
+                {
+                    isDash = true;
+                }
+                else
+                {
+                    sb.Append(char.ToLower(key[i]));
+                }
+            }
+            return sb.ToString();
         }
         public void close()
         {

@@ -24,7 +24,14 @@ namespace localStar.Connection
             }
             public T4 this[T3 index]
             {
-                get { return _dictionary[index]; }
+                get
+                {
+                    T4 tmp;
+                    if (_dictionary.TryGetValue(index, out tmp))
+                        return tmp;
+                    else
+                        return default(T4);
+                }
                 set { _dictionary[index] = value; }
             }
         }

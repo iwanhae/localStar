@@ -3,6 +3,7 @@ using localStar.Structure;
 using System;
 using System.Net.Sockets;
 using System.Threading.Tasks;
+using localStar.Logger;
 /*
 TODO:   Close할때 ServiceConnectionManager에 등록 해제하기
  */
@@ -13,15 +14,20 @@ namespace localStar.Connection
         private IConnection connection = null;
         private Service service;
         private bool onClosing = false;
-        private Task<int> readTask = null;
         private byte[] buffer = new byte[ushort.MaxValue];
 
         public ServiceConnection(Service service)
         {
+            Log.debug("Making New Connection to {0}", service.name);
             tcpClient = new TcpClient();
             var task = tcpClient.ConnectAsync(service.address.Address, service.address.Port);
             task.Wait(1000);
-            if (!task.IsCompleted) throw new Exception("Can not connect to service " + service.name);
+            if (!task.IsCompleted)
+            {
+                Log.error("Can not make new connection with {0}, {1}:{2}", service.name, service.address.Address, service.address.Port);
+                throw new Exception("Can not connect to service " + service.name);
+            }
+            Log.debug("New Service Connection {0} ({1}), ", this.localId, service.name);
 
             this.service = service;
         }
@@ -29,7 +35,7 @@ namespace localStar.Connection
         {
             try
             {
-                if (!tcpClient.Connected) return JobStatus.Failed ;
+                if (!tcpClient.Connected) return JobStatus.Failed;
                 /*
                 else if (readTask == null)
                 {
@@ -110,6 +116,7 @@ namespace localStar.Connection
                 try { tcpClient.Close(); }
                 catch { }
             }
+            Log.debug("Service Connection {0} Closed", this.localId);
         }
         private void sendConnectionEnd()
         {
