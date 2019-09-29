@@ -16,12 +16,14 @@ namespace localStar
         {
             Log.Init();
             Log.info("Reading Settings");
+            /*
             Service s = new Service("iptime", new IPEndPoint(IPAddress.Parse("192.168.0.1"), 80));
             Service n = new Service("nginx", new IPEndPoint(IPAddress.Parse("192.168.1.1"), 3000));
             Service w = new Service("web", new IPEndPoint(IPAddress.Parse("127.0.0.1"), 5008));
             ServiceConnectionManager.addService(s);
             ServiceConnectionManager.addService(n);
             ServiceConnectionManager.addService(w);
+            */
 
             Log.info("Initialinzing Worker Threads");
             HandleLoop.Init();
@@ -29,6 +31,9 @@ namespace localStar
             Log.info("Listening on 0.0.0.0:8000");
             TcpListener tl = new TcpListener(IPAddress.Any, 8000);
             tl.Start();
+
+
+            new NodeConnection(tl.AcceptTcpClient());
 
             Timer t = new Timer(Test, null, 1000, 1000);
 
@@ -38,6 +43,7 @@ namespace localStar
                 TcpClient tc = tl.AcceptTcpClient();
                 new ClientConnection(tc);
             }
+
         }
 
         private static int pQueueLength = 0;

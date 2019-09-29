@@ -12,40 +12,46 @@ namespace localStar.Connection
     public class NodeConnection : Connection
     {
         public Node node { get => nodeStream.node; }
+        public string nodeId { get => node.id; }
         private NodeStream nodeStream;
         private SelfConnection selfConnection;
         private Map<IConnection, short> connectionIdMap = new Map<IConnection, short>();
         private short connectionIdPtr = 0;
-        private bool isPrior { get => nodeStream.isPrior; }
+        public bool isPrior { get => nodeStream.isPrior; }
 
-        private void handleReceived(object sender, MessageReceivedArgs args)
+        private JobStatus handleReceived()
         {
+            if (nodeStream.ReceviedQueue == null) return JobStatus.Failed;
+            if (nodeStream.ReceviedQueue.Count == 0) return JobStatus.Pending;
+
+            var rawMessage = nodeStream.ReceviedQueue.Dequeue();
             /*
             On NodeStream
                 msg.data = buffer;
                 msg.Type = header.type;
              */
-            Message message = args.Message;
-            short connectionId = args.ConnectionId;
+            Message message = rawMessage.message;
+            short connectionId = rawMessage.connectionId;
             message.From = this;
+            IConnection tmp;
             switch (message.Type)
             {
                 case MessageType.NewConnection:
                     makingNewConnection(message, connectionId);
                     break;
                 case MessageType.NormalConnection:
-                    IConnection tmp = connectionIdMap.Backward[connectionId];
-                    if (tmp == null) EndConnection(connectionId);
-                    else tmp.Send(message);
+                    if (connectionIdMap.Backward.TryGetValue(connectionId, out tmp)) tmp.Send(message);
+                    else EndConnection(connectionId);
                     break;
                 case MessageType.EndConnection:
-                    connectionIdMap.Backward[connectionId].Send(message);
+                    if (connectionIdMap.Backward.TryGetValue(connectionId, out tmp)) tmp.Send(message);
                     connectionIdMap.RemoveBackward(connectionId);
                     break;
                 default:
                     selfConnection.Send(message);
                     break;
             }
+            return JobStatus.Good;
         }
 
         private void makingNewConnection(Message message, short connectionId)
@@ -75,6 +81,7 @@ namespace localStar.Connection
                 return;
             }
 
+            Log.debug("NODE : Register new connection {0}", connectionId);
             connectionIdMap.Add(connection, connectionId);
             connection.Send(message);
         }
@@ -91,6 +98,7 @@ namespace localStar.Connection
             if (message.Type == MessageType.NewConnection)
             {
                 short connectionId = getNewConnectionId();
+                Log.debug("NODE : Register new connection {0}", connectionId);
                 connectionIdMap.Add(message.From, connectionId);
                 nodeStream.sendMessage(message, connectionId);
             }
@@ -126,7 +134,6 @@ namespace localStar.Connection
             return connectionIdPtr;
         }
 
-        protected bool handleRead() { return false; }
 
         /// <param name="address">요청을 날릴 주소</param>
         public NodeConnection(IPEndPoint address)
@@ -139,18 +146,25 @@ namespace localStar.Connection
         public NodeConnection(TcpClient tcpClient) => Init(tcpClient);
         private void Init(TcpClient tcpClient)
         {
-            selfConnection = new SelfConnection(this);
-            connectionIdMap.Add(selfConnection, 0);
-
             if (!tcpClient.Connected) throw new ArgumentException("사용 불가능한 연결");
             Log.debug("New Node Connection with {0}", ((IPEndPoint)tcpClient.Client.RemoteEndPoint).Address);
             nodeStream = new NodeStream(tcpClient.GetStream());
-            nodeStream.MessageReceived += handleReceived;
+
+            HandleLoop.addJob(handleReceived);
+
+            selfConnection = new SelfConnection(this);
+            connectionIdMap.Add(selfConnection, 0);
+
+            NodeConnectionManager.addNodeConnection(this);
         }
 
         public override void Close()
         {
-            throw new NotImplementedException();
+            nodeStream.Close();
+            selfConnection.Close();
+            connectionIdMap = null;
+            Log.error("Connection Closed {0}", this.node.id);
+            NodeConnectionManager.removeNodeConnection(this);
         }
     }
 }

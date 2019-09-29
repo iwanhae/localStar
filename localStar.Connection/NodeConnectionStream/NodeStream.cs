@@ -8,6 +8,7 @@ using localStar.Nodes;
 using localStar.Config;
 using System.Text;
 using localStar.Structure;
+using localStar.Logger;
 
 namespace localStar.Connection
 {
@@ -17,10 +18,11 @@ namespace localStar.Connection
         private String nodeId;
         public Node node;
         public bool isPrior { get; private set; }
-        private Thread handleReceiveThread;
+        private Queue<MemoryStream> SendingQueue = new Queue<MemoryStream>();
+        public struct RawMessage { public Message message; public short connectionId; };
+        public Queue<RawMessage> ReceviedQueue = new Queue<RawMessage>();
 
-        public bool isAvailable { get { return nodeStream.CanWrite; } }
-        public event EventHandler<MessageReceivedArgs> MessageReceived;
+        public bool isAvailable { get { return nodeStream.CanRead; } }
         private bool isSending = false;
         public bool IsSending { get => isSending; }
 
@@ -29,100 +31,124 @@ namespace localStar.Connection
             nodeStream.ReadTimeout = 1000;
             nodeStream.WriteTimeout = 1000;
             this.nodeStream = nodeStream;
-            var task = handShake();
-            task.Wait();
-            if (!task.Result) return;
+            handShake();
 
-            handleReceiveThread = new Thread(this.handleReceive);
-            handleReceiveThread.Start();
+            HandleLoop.addJob(sendMessageQueue);
+            HandleLoop.addJob(handleReceive);
         }
 
-        private async void handleReceive()
+        private JobStatus handleReceive()
         {
+            if (!nodeStream.DataAvailable) return JobStatus.Pending;
             try
             {
-                while (this.isAvailable)
+                byte[] buffer = new byte[5];
+                nodeStream.Read(buffer, 0, 5);
+                Header header = new Header(buffer);
+                if (header.Length != 0)
                 {
-                    byte[] buffer = new byte[10];
-                    await nodeStream.ReadAsync(buffer, 0, 10);
-                    Header header = new Header(buffer);
                     buffer = new byte[header.Length];
-                    await nodeStream.ReadAsync(buffer, 0, header.Length);
-
-                    Message msg = new Message();
-                    msg.data = buffer;
-                    msg.Type = header.type;
-                    MessageReceivedArgs args = new MessageReceivedArgs(msg, header.connectionId);
-                    MessageReceived?.Invoke(this, args);
+                    nodeStream.Read(buffer, 0, header.Length);
                 }
+                else buffer = new byte[0];
+
+                Message msg = new Message();
+                msg.data = buffer;
+                msg.Type = header.type;
+
+                Logger.Log.debug("Received Message {0} Bytes from {1} : {2} / ConnectionId {3}", header.Length, this.nodeId, msg.Type, header.connectionId);
+
+                ReceviedQueue.Enqueue(new RawMessage()
+                {
+                    message = msg,
+                    connectionId = header.connectionId
+                });
+                return JobStatus.Good;
             }
             catch (Exception e)
             {
-                Console.WriteLine("ERROR FROM handleReceive, Connection with {0}", this.nodeId);
-                Console.WriteLine(e.ToString());
+                Logger.Log.error("ERROR FROM handleReceive, Connection with {0} : {1}", this.nodeId, e);
+                return JobStatus.Failed;
             }
         }
 
         public void sendMessage(Message message, short connectionId)
         {
+            Logger.Log.debug("Send Message {0} Bytes to {1} : {2} / ConnectionId {3}", message.Length, this.nodeId, message.Type, connectionId);
             Header header = new Header(connectionId, message);
             MemoryStream stream = new MemoryStream(Tools.concat(header.getEncoded(), message.data), false);
-            StreamPipe.Pipe.Connect(stream, nodeStream);
+            SendingQueue.Enqueue(stream);
         }
 
-        private async Task<bool> handShake()
+        private JobStatus sendMessageQueue()
         {
-            if (!await exchangeId()) return false;
-            Console.WriteLine("Try Connecting to {0}", this.nodeId);
+            if (SendingQueue == null) return JobStatus.Failed;
+            if (SendingQueue.Count == 0) return JobStatus.Pending;
+            try
+            {
+                MemoryStream tmp = SendingQueue.Dequeue();
+                tmp.CopyTo(nodeStream);
+                return JobStatus.Good;
+            }
+            catch
+            {
+                return JobStatus.Failed;
+            }
+        }
+
+        private bool handShake()
+        {
+            if (!exchangeId()) return false;
+            Log.debug("Try Connecting to {0}", this.nodeId);
             if (isDupId())
             {
-                Console.WriteLine("Dup Id");
+                Log.error("Dup Id");
                 return false;
             }
-            if (!await exchangeConfig()) return false;
-            Console.WriteLine("{0} : exchange settings", this.nodeId);
-            if (!await shareNodeInfo()) return false;
-            if (!await exchangeTimestamp()) return false;
-            Console.WriteLine("{0} : Node handshake success", this.nodeId);
-            Console.WriteLine("NEW NODE: {0}", node.ToString());
+            if (!exchangeConfig()) return false;
+            Log.debug("{0} : exchange settings", this.nodeId);
+            if (!shareNodeInfo()) return false;
+            if (!exchangeTimestamp()) return false;
+            Log.debug("{0} : Node handshake success", this.nodeId);
+            Log.debug("NEW NODE: {0}", node.ToString());
             return true;
         }
 
-        private async Task<bool> shareNodeInfo()
+        private bool shareNodeInfo()
         {
             byte[] buffer = Nodes.Tools.getBytesFromNode(NodeManager.getCurrentNode());
-            await sendBytes(buffer);
-            buffer = await getBytes();
+            sendBytes(buffer);
+            buffer = getBytes();
             this.node = Nodes.Tools.getNodeFromBytes(buffer);
             return true;
         }
-        private async Task<bool> exchangeTimestamp()
+        private bool exchangeTimestamp()
         {
             byte[] buffer;
-            async Task send()
+            void send()
             {
                 long milliseconds = DateTime.Now.Ticks;
-                await sendBytes(BitConverter.GetBytes(milliseconds));
-                buffer = await getBytes();
+                sendBytes(BitConverter.GetBytes(milliseconds));
+                buffer = getBytes();
                 node.setDelay((int)((DateTime.Now.Ticks - BitConverter.ToInt64(buffer)) / TimeSpan.TicksPerMillisecond));
             }
-            async Task receive()
+            void receive()
             {
-                await sendBytes(await getBytes());
+                sendBytes(getBytes());
             }
             if (this.isPrior)
             {
-                await send();
-                await receive();
+                send();
+                receive();
             }
             else
             {
-                await receive();
-                await send();
+                receive();
+                send();
             }
             return true;
         }
-        private async Task<bool> exchangeConfig()
+        private bool exchangeConfig()
         {
             // TODO
             return true;
@@ -132,15 +158,15 @@ namespace localStar.Connection
             if (NodeManager.getNodeById(nodeId) == null) return false;
             else return true;
         }
-        private async Task<bool> exchangeId()
+        private bool exchangeId()
         {
             byte[] buffer;
 
             // send
-            await sendBytes(Encoding.UTF8.GetBytes(ConfigMgr.nodeId));
+            sendBytes(Encoding.UTF8.GetBytes(ConfigMgr.nodeId));
 
             // get
-            buffer = await getBytes();
+            buffer = getBytes();
             string nodeId = Encoding.UTF8.GetString(buffer);
             this.nodeId = nodeId;
 
@@ -149,7 +175,7 @@ namespace localStar.Connection
             return true;
         }
 
-        private async Task<bool> sendBytes(byte[] data)
+        private bool sendBytes(byte[] data)
         {
             if (data.Length < Byte.MaxValue) nodeStream.WriteByte((byte)data.Length);
             else
@@ -157,24 +183,39 @@ namespace localStar.Connection
                 nodeStream.WriteByte(0);
                 nodeStream.Write(BitConverter.GetBytes(data.Length));
             }
-            await nodeStream.WriteAsync(data);
+            nodeStream.Write(data);
             return true;
         }
-        private async Task<byte[]> getBytes()
+        private byte[] getBytes()
         {
             byte[] buffer = new byte[1];
             int len;
-            await nodeStream.ReadAsync(buffer);
+            nodeStream.Read(buffer);
             if (buffer[0] != 0) len = buffer[0];
             else
             {
                 buffer = new byte[4]; // Int = 4 bytes
-                await nodeStream.ReadAsync(buffer);
+                nodeStream.Read(buffer);
                 len = BitConverter.ToInt32(buffer);
             }
             buffer = new byte[len];
-            await nodeStream.ReadAsync(buffer);
+            nodeStream.Read(buffer);
             return buffer;
+        }
+
+        public void Close()
+        {
+            if (nodeStream.DataAvailable)
+            {
+                try
+                {
+                    nodeStream.Close();
+                }
+                catch { }
+            }
+
+            SendingQueue = null;
+            ReceviedQueue = null;
         }
     }
 }

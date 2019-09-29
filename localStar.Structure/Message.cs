@@ -5,8 +5,6 @@ namespace localStar.Structure
     public struct Message
     {
         public string URL;
-        public int LocalTo;
-        public int LocalFrom;
         public IConnection From;
         public MessageType Type;
         public ushort Length { get => (ushort)data.Length; }

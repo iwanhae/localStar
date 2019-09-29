@@ -43,14 +43,21 @@ namespace localStar.Nodes
             }
             else // 목적지는 NodeConnectionManager 에서 찾아야함.
             {
-
+                try
+                {
+                    return NodeConnectionManager.getConnection(node.id);
+                }
+                catch
+                {
+                    return null;
+                }
             }
-            return null;
         }
 
         public static bool addConnectedNode(Node node)
         {
             CurrentNode.addConnectedNode(node, node.delay);
+            CurrentNode.refreshIndex();
             return true;
         }
         public static Node getCurrentNode()

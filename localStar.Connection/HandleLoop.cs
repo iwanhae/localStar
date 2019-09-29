@@ -9,7 +9,7 @@ namespace localStar.Connection
 {
     public static class HandleLoop
     {
-        const int HOW_MANY_WORKER = 1;
+        const int HOW_MANY_WORKER = 10;
         private static ConcurrentQueue<Func<JobStatus>> jobQueue = new ConcurrentQueue<Func<JobStatus>>();
         private static Thread[] worker = new Thread[HOW_MANY_WORKER];
         public static void Init()
@@ -52,7 +52,10 @@ namespace localStar.Connection
                                 break;
                         }
                     }
-                    catch { }
+                    catch (Exception e)
+                    {
+                        Log.error("Loop : Unexpected Exception : {0}", e);
+                    }
                     if (jobQueue.Count < Counter)
                     {
                         if (pendingCounter == Counter)

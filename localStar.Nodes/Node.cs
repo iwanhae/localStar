@@ -75,11 +75,9 @@ namespace localStar.Nodes
             foreach (var pair in ConnectedNode) list.Add(pair.Value);
             return list;
         }
-        public bool addConnectedNode(Node node, int delay)
+        public void addConnectedNode(Node node, int delay)
         {
-            if (ConnectedNode.ContainsKey(node.id)) return false;
-            ConnectedNode.Add(node.id, node);
-            return true;
+            ConnectedNode[node.id] = node;
         }
         public bool setNodeDelay(string id, int delay)
         {

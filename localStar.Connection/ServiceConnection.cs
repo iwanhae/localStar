@@ -18,16 +18,17 @@ namespace localStar.Connection
 
         public ServiceConnection(Service service)
         {
-            Log.debug("Making New Connection to {0}", service.name);
+            Log.debug("Service {0} : Making New Connection, {1}", this.localId, service.name);
+
             tcpClient = new TcpClient();
             var task = tcpClient.ConnectAsync(service.address.Address, service.address.Port);
             task.Wait(1000);
             if (!task.IsCompleted)
             {
-                Log.error("Can not make new connection with {0}, {1}:{2}", service.name, service.address.Address, service.address.Port);
+                Log.error("Service {0} : Can not Make a new connection with {1}", this.localId, service.name);
                 throw new Exception("Can not connect to service " + service.name);
             }
-            Log.debug("New Service Connection {0} ({1}), ", this.localId, service.name);
+            Log.debug("Service {0} : Connection Established, {1}", this.localId, service.name);
 
             this.service = service;
         }
@@ -36,14 +37,7 @@ namespace localStar.Connection
             try
             {
                 if (!tcpClient.Connected) return JobStatus.Failed;
-                /*
-                else if (readTask == null)
-                {
-                    readTask = tcpClient.GetStream().ReadAsync(this.buffer).AsTask();
-                    return true;
-                }
-                */
-                else // if (readTask.IsCompleted)
+                else
                 {
                     if (!tcpClient.GetStream().DataAvailable)
                     {
@@ -51,9 +45,10 @@ namespace localStar.Connection
                         return JobStatus.Pending;
                     }
                     int len = tcpClient.GetStream().Read(this.buffer);
-                    // readTask = tcpClient.GetStream().ReadAsync(this.buffer).AsTask();
+
                     if (len != 0)
                     {
+                        Log.debug("Service {0} : Received {1} bytes of data.", this.localId, len);
                         byte[] tmp = new byte[len];
                         Buffer.BlockCopy(buffer, 0, tmp, 0, len);
                         connection.Send(new Message
@@ -66,6 +61,7 @@ namespace localStar.Connection
                     }
                     else
                     {
+                        Log.debug("Service {0} : Service send 0 byte data. Connection closed", this.localId);
                         sendConnectionEnd();
                         Close();
                         return JobStatus.Failed;
@@ -74,6 +70,7 @@ namespace localStar.Connection
             }
             catch
             {
+                Log.debug("Service {0} : Some Error occured. Connection closed", this.localId);
                 try { sendConnectionEnd(); } catch { }
                 Close();
                 return JobStatus.Failed;
@@ -83,11 +80,13 @@ namespace localStar.Connection
         {
             if (message.Type == MessageType.NormalConnection)
             {
+                Log.debug("Service {0} : Send {1} bytes of data", this.localId, message.Length);
                 try { tcpClient.GetStream().Write(message.data); }
                 catch { sendConnectionEnd(); Close(); }
             }
             else if (message.Type == MessageType.EndConnection)
             {
+                Log.debug("Service {0} : Receive Connection closed message. connection closed", this.localId);
                 onClosing = true;
                 try
                 {

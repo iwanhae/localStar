@@ -24,12 +24,12 @@ namespace localStar.Connection
             try { header = readHeader(tcpClient); }
             catch { return; }
 
-            Log.debug("handle New Client {0}, Routing to {1}", this.localId, destinedService);
+            Log.debug("Client {0} : New Connection, Routing to {1}", this.localId, destinedService);
 
             connection = NodeManager.shortestPathTo(destinedService);
             if (connection == null)
             {
-                Log.error("Can not make new connection to {0}", destinedService);
+                Log.error("Client {0} : Can not make new connection to {1}", this.localId, destinedService);
                 header.closeWithNotFound();
                 return;
             }
@@ -76,6 +76,7 @@ namespace localStar.Connection
                     }
                     else
                     {
+                        Log.debug("Client {0} : Client send 0 length data. Connection closed", this.localId);
                         sendConnectionEnd();
                         Close();
                         return JobStatus.Failed;
@@ -85,12 +86,14 @@ namespace localStar.Connection
                 {
                     if (readTask.IsFaulted || readTask.IsCanceled)
                     {
+                        Log.debug("Client {0} : Some error has occured. Connection closed", this.localId);
                         sendConnectionEnd();
                         Close();
                         return JobStatus.Failed;
                     }
                     else if ((DateTime.Now - lastActivity).Seconds > 3)
                     {
+                        Log.debug("Client {0} : Connection timeout. connection closed", this.localId);
                         sendConnectionEnd();
                         Close();
                         return JobStatus.Failed;
@@ -100,6 +103,7 @@ namespace localStar.Connection
             }
             catch
             {
+                Log.debug("Client {0} : Unkown Error occured. connection closed", this.localId);
                 try { sendConnectionEnd(); } catch { }
                 Close();
                 return JobStatus.Failed;
@@ -126,6 +130,8 @@ namespace localStar.Connection
         {
             if (message.Type == MessageType.EndConnection)
             {
+                Log.debug("Client {0} : Receive Connection closed message. connection closed", this.localId);
+
                 onClosing = true;
                 try
                 {
@@ -139,6 +145,8 @@ namespace localStar.Connection
             }
             else
             {
+                Log.debug("Client {0} : Send {1} bytes of data", this.localId, message.Length);
+
                 try { tcpClient.GetStream().Write(message.data); }
                 catch { sendConnectionEnd(); Close(); }
                 lastActivity = DateTime.Now;

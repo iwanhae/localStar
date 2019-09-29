@@ -6,7 +6,7 @@ using localStar.Structure;
 
 namespace localStar.Connection
 {
-    public interface IConnection
+    public interface IConnection : IComparable
     {
         int localId { get; }
         void Send(Message message);
@@ -23,5 +23,11 @@ namespace localStar.Connection
 
         public virtual void Dispose()
         { }
+
+        public int CompareTo(object obj)
+        {
+            IConnection tmp = obj as IConnection;
+            return this.localId < tmp.localId ? -1 : tmp.localId == this.localId ? 0 : 1;
+        }
     }
 }

@@ -6,6 +6,7 @@ using localStar.Config;
 
 namespace localStar.Nodes
 {
+    [Serializable]
     public class Service : ISerializable
     {
         public string name { get; }
