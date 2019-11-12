@@ -102,8 +102,8 @@ namespace localStar.Connection
             {
                 connection = message.From;
                 HandleLoop.addJob(handleRead);
-                try { tcpClient.GetStream().Write(message.data); }
-                catch { sendConnectionEnd(); Close(); }
+                // try { tcpClient.GetStream().Write(message.data); }
+                // catch { sendConnectionEnd(); Close(); }
             }
         }
         public override void Close()

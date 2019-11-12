@@ -18,13 +18,10 @@ namespace localStar.Connection
         private Map<IConnection, short> connectionIdMap = new Map<IConnection, short>();
         private short connectionIdPtr = 0;
         public bool isPrior { get => nodeStream.isPrior; }
+        public bool isConnected { get => nodeStream != null; }
 
-        private JobStatus handleReceived()
+        private JobStatus handleReceived(NodeStream.RawMessage rawMessage)
         {
-            if (nodeStream.ReceviedQueue == null) return JobStatus.Failed;
-            if (nodeStream.ReceviedQueue.Count == 0) return JobStatus.Pending;
-
-            var rawMessage = nodeStream.ReceviedQueue.Dequeue();
             /*
             On NodeStream
                 msg.data = buffer;
@@ -34,42 +31,39 @@ namespace localStar.Connection
             short connectionId = rawMessage.connectionId;
             message.From = this;
             IConnection tmp;
-            switch (message.Type)
+
+            if (connectionId == 0)
             {
-                case MessageType.NewConnection:
-                    makingNewConnection(message, connectionId);
-                    break;
-                case MessageType.NormalConnection:
-                    if (connectionIdMap.Backward.TryGetValue(connectionId, out tmp)) tmp.Send(message);
-                    else EndConnection(connectionId);
-                    break;
-                case MessageType.EndConnection:
-                    if (connectionIdMap.Backward.TryGetValue(connectionId, out tmp)) tmp.Send(message);
-                    connectionIdMap.RemoveBackward(connectionId);
-                    break;
-                default:
-                    selfConnection.Send(message);
-                    break;
+                selfConnection.Send(message);
+            }
+            else
+            {
+                switch (message.Type)
+                {
+                    case MessageType.NewConnection:
+                        makingNewConnection(message, connectionId);
+                        break;
+                    case MessageType.NormalConnection:
+                        if (connectionIdMap.Backward.TryGetValue(connectionId, out tmp)) tmp.Send(message);
+                        else TerminateConnection(connectionId);
+                        break;
+                    case MessageType.EndConnection:
+                        if (connectionIdMap.Backward.TryGetValue(connectionId, out tmp))
+                        {
+                            connectionIdMap.RemoveBackward(connectionId);
+                            tmp.Send(message);
+                        }
+                        break;
+                    default:
+                        break;
+                }
             }
             return JobStatus.Good;
         }
 
         private void makingNewConnection(Message message, short connectionId)
         {
-            MemoryStream ms = new MemoryStream(message.data);
-            HttpHeader header = new HttpHeader(ms);
-            string destinedService;
-            try
-            {
-                if (!header.isValid) throw new Exception();
-                destinedService = header.KVSet["Host"].Split(':')[0];
-                if (!header.KVSet.ContainsKey("Localstar-Through")) header.KVSet["Localstar-Through"] = "";
-                header.KVSet["Localstar-Through"] += "," + Config.ConfigMgr.nodeId;
-            }
-            catch
-            {
-                throw new Exception("Can Not Parse Header");
-            }
+            string destinedService = System.Text.Encoding.UTF8.GetString(message.data);
             Log.debug("handle New Message From {0}, Routing to {1}", this.node.id, destinedService);
 
             IConnection connection = NodeManager.shortestPathTo(destinedService);
@@ -77,7 +71,7 @@ namespace localStar.Connection
             if (connection == null)
             {
                 Log.error("Can not make new connection to {0}", destinedService);
-                EndConnection(connectionId);
+                TerminateConnection(connectionId);
                 return;
             }
 
@@ -85,7 +79,7 @@ namespace localStar.Connection
             connectionIdMap.Add(connection, connectionId);
             connection.Send(message);
         }
-        private void EndConnection(short connectionId)
+        private void TerminateConnection(short connectionId)
         {
             nodeStream.sendMessage(new Message
             {
@@ -139,7 +133,14 @@ namespace localStar.Connection
         public NodeConnection(IPEndPoint address)
         {
             tcpClient = new TcpClient();
-            tcpClient.Connect(address);
+            var task = tcpClient.BeginConnect(address.Address, address.Port, null, null);
+            task.AsyncWaitHandle.WaitOne(3000);
+            if (!tcpClient.Connected)
+            {
+                Log.error("Can not Connect to {0}:{1}", address.Address, address.Port);
+                tcpClient.Close();
+                return;
+            }
             Init(tcpClient);
         }
         /// <param name="tcpClient">이미 통신준비가 완료된 객체</param>
@@ -148,9 +149,7 @@ namespace localStar.Connection
         {
             if (!tcpClient.Connected) throw new ArgumentException("사용 불가능한 연결");
             Log.debug("New Node Connection with {0}", ((IPEndPoint)tcpClient.Client.RemoteEndPoint).Address);
-            nodeStream = new NodeStream(tcpClient.GetStream());
-
-            HandleLoop.addJob(handleReceived);
+            nodeStream = new NodeStream(tcpClient.GetStream(), handleReceived);
 
             selfConnection = new SelfConnection(this);
             connectionIdMap.Add(selfConnection, 0);

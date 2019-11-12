@@ -13,13 +13,15 @@ namespace localStar.Nodes
         public IPEndPoint address { get; }
         public int delay { get; set; } //서비스가 소속된 노드와 서비스간의 지연
         public Node Parent { get; set; }
+        public Healthcheck healthcheck = new Healthcheck();
 
-        public Service(string name, IPEndPoint address, Node Parent = null, int delay = 0)
+        public Service(string name, IPEndPoint address, Node Parent = null, int delay = 0, Healthcheck healthcheck = null)
         {
             this.name = name;
             this.address = address;
             this.Parent = Parent;
             this.delay = delay;
+            if (healthcheck != null) this.healthcheck = healthcheck;
         }
 
         public void setDelay(int delay) => this.delay = delay;
@@ -35,7 +37,12 @@ namespace localStar.Nodes
             if (!this.GetType().Equals(obj.GetType())) return false;
             Service n = (Service)obj;
             if (!this.name.Equals(n.name)) return false;
-            if (!this.Parent.Equals(n.Parent)) return false;
+            if (this.Parent != null)
+            {
+                if (!this.Parent.Equals(n.Parent)) return false;
+            }
+            else if (n.Parent != null) return false;
+
             if (!this.address.Equals(n.address)) return false;
             return true;
         }

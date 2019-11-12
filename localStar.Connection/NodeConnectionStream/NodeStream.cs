@@ -18,52 +18,84 @@ namespace localStar.Connection
         private String nodeId;
         public Node node;
         public bool isPrior { get; private set; }
-        private Queue<MemoryStream> SendingQueue = new Queue<MemoryStream>();
+
+        private Queue<byte[]> SendingQueue = new Queue<byte[]>();
         public struct RawMessage { public Message message; public short connectionId; };
-        public Queue<RawMessage> ReceviedQueue = new Queue<RawMessage>();
+        Func<RawMessage, JobStatus> handleReceived;
 
         public bool isAvailable { get { return nodeStream.CanRead; } }
         private bool isSending = false;
         public bool IsSending { get => isSending; }
 
-        public NodeStream(NetworkStream nodeStream)
+        public NodeStream(NetworkStream nodeStream, Func<RawMessage, JobStatus> handleReceived)
         {
             nodeStream.ReadTimeout = 1000;
             nodeStream.WriteTimeout = 1000;
             this.nodeStream = nodeStream;
             handShake();
 
+            this.handleReceived = handleReceived;
+
             HandleLoop.addJob(sendMessageQueue);
             HandleLoop.addJob(handleReceive);
         }
 
+        private MemoryStream ms = new MemoryStream();
+        private Header header = null;
+        private bool onReceiving = false;
+        int receiveCounter = 0;
         private JobStatus handleReceive()
         {
             if (!nodeStream.DataAvailable) return JobStatus.Pending;
             try
             {
-                byte[] buffer = new byte[5];
-                nodeStream.Read(buffer, 0, 5);
-                Header header = new Header(buffer);
-                if (header.Length != 0)
+                byte[] buffer;
+                if (!onReceiving)
                 {
-                    buffer = new byte[header.Length];
-                    nodeStream.Read(buffer, 0, header.Length);
+                    buffer = new byte[5];
+                    for (int i = 0; i < 5; i++)
+                    {
+                        int tmp = nodeStream.ReadByte();
+                        if (tmp == -1)
+                        {
+                            i--;
+                        }
+                        else
+                        {
+                            buffer[i] = (byte)tmp;
+                        }
+                    }
+                    this.header = new Header(buffer);
+
+                    onReceiving = true;
                 }
-                else buffer = new byte[0];
-
-                Message msg = new Message();
-                msg.data = buffer;
-                msg.Type = header.type;
-
-                Logger.Log.debug("Received Message {0} Bytes from {1} : {2} / ConnectionId {3}", header.Length, this.nodeId, msg.Type, header.connectionId);
-
-                ReceviedQueue.Enqueue(new RawMessage()
+                buffer = new byte[header.Length - ms.Length];
+                int len = nodeStream.Read(buffer);
+                if (len == header.Length - ms.Length)
                 {
-                    message = msg,
-                    connectionId = header.connectionId
-                });
-                return JobStatus.Good;
+                    onReceiving = false;
+                    ms.Write(buffer);
+
+                    Message msg = new Message();
+                    msg.data = ms.ToArray();
+                    msg.Type = header.type;
+
+                    Logger.Log.debug("NODESTREAM : Received Message {0} Bytes from {1} : {2} / ConnectionId {3} : {4}", header.Length, this.nodeId, msg.Type, header.connectionId, receiveCounter++);
+
+                    ms = new MemoryStream();
+
+                    return handleReceived(new RawMessage()
+                    {
+                        message = msg,
+                        connectionId = header.connectionId
+                    });
+                }
+                else
+                {
+                    ms.Write(buffer);
+                    return JobStatus.Pending;
+                }
+
             }
             catch (Exception e)
             {
@@ -74,11 +106,10 @@ namespace localStar.Connection
 
         public void sendMessage(Message message, short connectionId)
         {
-            Logger.Log.debug("Send Message {0} Bytes to {1} : {2} / ConnectionId {3}", message.Length, this.nodeId, message.Type, connectionId);
             Header header = new Header(connectionId, message);
-            MemoryStream stream = new MemoryStream(Tools.concat(header.getEncoded(), message.data), false);
-            SendingQueue.Enqueue(stream);
+            SendingQueue.Enqueue(Tools.concat(header.getEncoded(), message.data));
         }
+        int sendCounter = 0;
 
         private JobStatus sendMessageQueue()
         {
@@ -86,8 +117,9 @@ namespace localStar.Connection
             if (SendingQueue.Count == 0) return JobStatus.Pending;
             try
             {
-                MemoryStream tmp = SendingQueue.Dequeue();
-                tmp.CopyTo(nodeStream);
+                byte[] tmp = SendingQueue.Dequeue();
+                nodeStream.Write(tmp);
+                Logger.Log.debug("Send Message {0} Bytes to {1} : {2}", tmp.Length, this.nodeId, sendCounter++);
                 return JobStatus.Good;
             }
             catch
@@ -215,7 +247,6 @@ namespace localStar.Connection
             }
 
             SendingQueue = null;
-            ReceviedQueue = null;
         }
     }
 }

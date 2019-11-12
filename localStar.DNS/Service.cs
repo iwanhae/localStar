@@ -38,13 +38,13 @@ namespace localStar.DNS
                 if (!Labels[Labels.Length - 1].ToLower().Equals("service")) continue; // 서비스로 안끝나면 관심없음
 
                 String q = String.Concat(record.Name.Labels);
-                response.AnswerRecords.Add(new ARecord(record.Name, 10, ConfigMgr.localPublicIP));
+                response.AnswerRecords.Add(new ARecord(record.Name, 10, ConfigMgr.localIp));
                 query.Questions.Remove(record);
             }
 
             if (query.Questions.Count != 0)
             {
-                DnsClient client = new DnsClient(ConfigMgr.nameSevers, 1000);
+                DnsClient client = new DnsClient(ConfigMgr.nameservers, 1000);
                 DnsMessage q = await client.SendMessageAsync(query);
                 if (q != null)
                 {

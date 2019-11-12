@@ -11,7 +11,7 @@ namespace localStar.Nodes
 {
     public static class NodeManager
     {
-        static Node CurrentNode = new Node(ConfigMgr.nodeId, ConfigMgr.globalPublicEndPoint);
+        static Node CurrentNode = new Node(ConfigMgr.nodeId, ConfigMgr.globalEndPoint);
 
         /// <summary>
         /// 해당 URL로 가기위해 어느 localId로 가야하는지 알려줌

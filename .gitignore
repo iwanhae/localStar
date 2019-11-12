@@ -1,3 +1,4 @@
+.sync
 *.swp
 *.*~
 project.lock.json

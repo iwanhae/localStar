@@ -1,0 +1,35 @@
+nodeId: server-1
+
+localHost: 0.0.0.0
+localPort: 9000
+localIp: 127.0.0.1  # 내부 프로그램이 이 노드로 접속할 때 사용할 주소
+
+globalHost: 0.0.0.0
+globalPort: 9001  # Node 끼리 통신하는데 사용할 포트
+globalIp : 175.193.162.44 # 외부 노드에서 이 노드로 접속할때 사용할 주소
+
+dnsHost: 0.0.0.0
+dnsPort: 9053
+
+options:
+  force-match-node-name: false
+
+nameservers:
+  addresses:
+    - 8.8.8.8
+    - 8.8.4.4
+
+services:
+  - name: nginx
+    addresses:
+      - 127.0.0.1:5000
+      - 127.0.0.1:5001
+    healthcheck:
+      method: GET
+      interval: 10 # sec
+      timeout: 10 # sec
+      retries: 3
+
+nodes:
+  - name: server1  # not important
+    address: 175.192.168.44:9001

@@ -4,6 +4,7 @@ using localStar.Logger;
 using System;
 using System.Net.Sockets;
 using System.Threading.Tasks;
+using System.Text;
 
 namespace localStar.Connection
 {
@@ -39,10 +40,20 @@ namespace localStar.Connection
                 From = this,
                 Type = MessageType.NewConnection,
                 URL = this.destinedService,
-                data = header.getBytes(),
+                data = Encoding.UTF8.GetBytes(this.destinedService),
             };
 
             connection.Send(message);
+
+            message = new Message
+            {
+                From = this,
+                Type = MessageType.NormalConnection,
+                URL = this.destinedService,
+                data = header.getBytes(),
+            };
+            connection.Send(message);
+
             HandleLoop.addJob(handleRead);
 
         }
